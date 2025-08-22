@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin — Logowanie</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:#f6f7f9;margin:0;padding:0;display:grid;place-items:center;min-height:100vh}
+    .card{background:#fff; padding:24px; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.08); width:min(420px, 92vw)}
+    label{display:block; font-size:14px; margin-top:12px}
+    input{width:100%; padding:12px; border:1px solid #e5e7eb; border-radius:12px; font-size:16px; box-sizing:border-box}
+    button{margin-top:16px; width:100%; padding:12px; border:0; border-radius:12px; background:black; color:white; font-size:16px; cursor:pointer}
+    .err{color:#b91c1c; margin-top:8px}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1 style="margin:0 0 12px 0">Panel admina — logowanie</h1>
+    <form id="loginForm">
+      <label>Login
+        <input name="login" placeholder="123" autocomplete="username" required>
+      </label>
+      <label>Hasło
+        <input name="password" type="password" placeholder="123" autocomplete="current-password" required>
+      </label>
+      <button type="submit">Zaloguj</button>
+      <p id="err" class="err" hidden></p>
+    </form>
+  </main>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = { login: fd.get('login'), password: fd.get('password') };
+      const res = await fetch('/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+      if (res.ok) {
+        location.href = '/admin/panel.html';
+      } else {
+        const msg = (await res.json().catch(()=>({message:'Błąd logowania'}))).message || 'Błąd logowania';
+        const p = document.getElementById('err'); p.textContent = msg; p.hidden=false;
+      }
+    });
+  </script>
+</body>
+</html>

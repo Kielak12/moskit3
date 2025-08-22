@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel admina — Opinie</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:#f6f7f9;margin:0}
+    header{position:sticky;top:0;background:rgba(255,255,255,.8);backdrop-filter:blur(8px);border-bottom:1px solid #eee;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+    main{max-width:1100px;margin:0 auto;padding:16px}
+    .card{background:#fff; padding:16px; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.06); margin:16px 0}
+    label{display:block; font-size:14px; margin-top:8px}
+    input, textarea, select{width:100%; padding:10px; border:1px solid #e5e7eb; border-radius:12px; font-size:16px; box-sizing:border-box}
+    button{padding:10px 14px; border:0; border-radius:12px; background:black; color:white; font-size:15px; cursor:pointer}
+    table{width:100%; border-collapse:separate; border-spacing:0 10px}
+    td, th{padding:10px 12px; text-align:left}
+    tr{background:#fff}
+    tr td:first-child, tr th:first-child{border-top-left-radius:12px; border-bottom-left-radius:12px}
+    tr td:last-child, tr th:last-child{border-top-right-radius:12px; border-bottom-right-radius:12px}
+    .muted{color:#6b7280}
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Panel admina — Opinie</strong>
+    <nav>
+      <button id="logoutBtn" style="background:#ef4444">Wyloguj</button>
+    </nav>
+  </header>
+  <main>
+    <section class="card">
+      <h2>Dodaj opinię</h2>
+      <form id="addForm">
+        <label>Imię i nazwisko (lub pseudonim)
+          <input name="name" required placeholder="Jan Nowak">
+        </label>
+        <label>Ocena (1–5)
+          <select name="rating" required>
+            <option value="5" selected>5</option>
+            <option value="4">4</option>
+            <option value="3">3</option>
+            <option value="2">2</option>
+            <option value="1">1</option>
+          </select>
+        </label>
+        <label>Treść opinii
+          <textarea name="comment" rows="4" required placeholder="Krótka opinia..."></textarea>
+        </label>
+        <div style="margin-top:12px">
+          <button type="submit">Zapisz</button>
+        </div>
+        <p id="addMsg" class="muted"></p>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Lista opinii</h2>
+      <div id="list"></div>
+    </section>
+  </main>
+
+  <script>
+    async function checkAuth() {
+      const res = await fetch('/admin/whoami', { cache:'no-store' });
+      if (!res.ok) location.href='/admin/login.html';
+    }
+
+    async function logout() {
+      await fetch('/admin/logout', { method:'POST' });
+      location.href='/admin/login.html';
+    }
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+
+    async function loadReviews() {
+      const res = await fetch('/api/reviews?limit=200');
+      const data = await res.json();
+      const items = data.items || [];
+      const container = document.getElementById('list');
+      if (!items.length) { container.innerHTML = '<p class="muted">Brak opinii.</p>'; return; }
+      const rows = items.map(r => `
+        <tr>
+          <td>${r.id}</td>
+          <td>${r.name ? r.name.replace(/[<>]/g,'') : 'Anonim'}</td>
+          <td>${r.rating}</td>
+          <td>${(r.comment || '').replace(/[<>]/g,'')}</td>
+          <td>${new Date(r.created_at).toLocaleString('pl-PL')}</td>
+          <td><button data-id="${r.id}" class="del">Usuń</button></td>
+        </tr>
+      `).join('');
+      container.innerHTML = `
+        <table>
+          <thead><tr><th>ID</th><th>Autor</th><th>Ocena</th><th>Opinia</th><th>Data</th><th>Akcje</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+      container.querySelectorAll('button.del').forEach(btn => btn.addEventListener('click', async (e) => {
+        const id = e.target.getAttribute('data-id');
+        if (!confirm('Na pewno usunąć opinię #' + id + '?')) return;
+        const res = await fetch('/api/reviews/' + id, { method:'DELETE' });
+        if (res.ok) loadReviews();
+      }));
+    }
+
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = {
+        name: fd.get('name'),
+        rating: parseInt(fd.get('rating'), 10),
+        comment: fd.get('comment')
+      };
+      const res = await fetch('/api/reviews', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const msg = document.getElementById('addMsg');
+      if (res.ok) {
+        msg.textContent = 'Zapisano.'; e.target.reset(); loadReviews();
+      } else {
+        const data = await res.json().catch(()=>({message:'Błąd zapisu'}));
+        msg.textContent = 'Błąd: ' + (data.message || res.status);
+      }
+    });
+
+    (async () => { await checkAuth(); await loadReviews(); })();
+  </script>
+</body>
+</html>
