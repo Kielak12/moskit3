@@ -1,29 +1,38 @@
 
-/**
- * Middleware: chroni /admin/* przed dostępem niezalogowanych.
- * Używa ciasteczka admin_auth=1 ustawianego po poprawnym logowaniu.
- */
-export async function onRequest(context) {
-  const { request, next } = context;
-  const url = new URL(request.url);
-  const path = url.pathname;
+// functions/_middleware.js
+export async function onRequest({ request, next }) {
+  try {
+    const url = new URL(request.url);
+    const path = url.pathname;
 
-  // allow static assets and login endpoints
-  const isAdminPath = path.startsWith('/admin');
-  const isLoginPage = path === '/admin/login' || path === '/admin/login.html' || path === '/admin/whoami';
-  const isLogout = path === '/admin/logout';
+    const isAdmin = path.startsWith('/admin');
+    const isPublicAdminEndpoint =
+      path === '/admin/login' ||
+      path === '/admin/login.html' ||
+      path === '/admin/whoami' ||
+      path === '/admin/logout';
 
-  if (isAdminPath && !isLoginPage && !isLogout) {
-    const cookie = request.headers.get('Cookie') || '';
-    const authed = /(?:^|;\s*)admin_auth=1(?=;|$)/.test(cookie);
-    if (!authed) {
-      // If client requested HTML, redirect to login page
-      const acceptsHTML = (request.headers.get('Accept') || '').includes('text/html');
-      if (acceptsHTML) {
-        return Response.redirect('/admin/login.html', 302);
+    if (isAdmin && !isPublicAdminEndpoint) {
+      const cookie = request.headers.get('Cookie') || '';
+      const authed = /(?:^|;\s*)admin_auth=1(?=;|$)/.test(cookie);
+
+      if (!authed) {
+        const wantsHTML = (request.headers.get('Accept') || '').includes('text/html');
+        if (wantsHTML) {
+          // ⚠️ Używamy adresu ABSOLUTNEGO – względny bywa powodem 1101
+          const loginUrl = new URL('/admin/login.html', url);
+          return Response.redirect(loginUrl, 302);
+        }
+        return new Response(JSON.stringify({ message: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        });
       }
-      return new Response(JSON.stringify({ message: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
+
+    return await next();
+  } catch (err) {
+    // czytelny komunikat w logach zamiast 1101 bez treści
+    return new Response('Middleware error: ' + (err?.message || String(err)), { status: 500 });
   }
-  return next();
 }
